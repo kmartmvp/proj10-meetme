@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html lang="en"> <head>
+<title>Appointments</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link rel="stylesheet" type="text/css"
+     href="//cdn.jsdelivr.net/bootstrap/latest/css/bootstrap.css"
+/>
+
+
+<link rel="stylesheet" type="text/css"
+    href="/static/css/busy.css"
+/>
+
+<!-- jquery from a content distribution network; probably cached -->
+<script type="text/javascript"
+     src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js">
+</script>
+
+<!-- Ideally the rest of our javascript dependencies would be
+     bundled and minified with 'browserify', but I've found that
+     it difficult to handle browserify dependencies for class
+     projects.  So, we'll pick up moment and a date range picker
+     from CDNs instead.
+-->
+
+<script type="text/javascript" src="//cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+
+<script type="text/javascript" src="//cdn.jsdelivr.net/bootstrap.daterangepicker/2/daterangepicker.js"></script>
+<link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/bootstrap.daterangepicker/2/daterangepicker.css" />
+
+
+</head>
+
+<body>
+<div class="container">
+
+<h1>Busy times</h1>
+
+<!--
+  -- If there are any warnings or other messages from a prior action,
+  -- they appear above the rest of the content, just until the next 
+  -- action.
+  -->
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <ul class=flashes>
+    {% for message in messages %}
+      <li>{{ message }}</li>
+    {% endfor %}
+    </ul>
+  {% endif %}
+{% endwith %}
+
+<h2>Date range</h2>
+  <form action="/setrange" method="post">
+  <input type="text" name="daterange" size="40"
+     {% if session.daterange is defined %}
+      value="{{session.daterange}}"
+     {% endif %}
+     class="pull-down"
+     style="background: #fff; cursor: pointer; padding: 5px 10px;
+     border: 1px solid #ccc; width: 12em" >
+  
+  <script type="text/javascript">
+  // Docs on daterangepicker: http://www.daterangepicker.com/#usage
+  $(function() {
+  $('input[name="daterange"]').daterangepicker(
+    {    timePicker: true,
+         ranges: {
+           'Today': [moment(), moment()],
+           'Tomorrow':[moment().add(1, 'days'),
+                       moment().add(1, 'days')], 
+           'This week':[moment(), moment().endOf('week')],
+           'Next week':[moment().add(7, 'days').startOf('week'),
+                        moment().add(7, 'days').endOf('week')],
+           'This month':[moment(), moment().endOf('month')],
+           'Within two weeks':[moment(),moment().add(15, 'days')]
+        },
+        locale: {
+          format: 'M/DD/YYYY hh:mm A'
+        }
+         }
+       );
+    });
+  </script>
+
+<br /><input type="submit" value="Choose" id="chooseBtn" />
+</form>
+
+    <!--
+    Show the calendar list (if we have it).  This will need to be turned into
+    a form from which calendars can be picked. Up to three entries are
+    shown in each row (but the order is across then down; I would
+    prefer down then across). 
+    -->
+{% if g.calendars is defined  %}
+  <h4>Pick Calendars:</h4>
+  <div class="row">
+  {% for cal in g.calendars %}
+          <!-- Give id to each calendar for selection -->
+          <div class="col-md-4" id="{{cal.id}}">
+	          {{ cal.summary }}
+          </div>
+         {% if loop.index is divisibleby 3 %}
+          </div> <div class="row">
+         {% endif %}
+  {% endfor %}
+  </div>
+  <!-- Add option to find busy times now that dates are selected -->
+  <input type="submit" value="Find Busy Times" id="find" />
+{% endif %}
+
+  <script>
+    /* Reference for cursor change: 
+        https://stackoverflow.com/questions/1843674/how-to-change-cursor-from-pointer-to-finger-using-jquery
+     General Reference:
+        http://api.jquery.com/css/ */
+    $(".col-md-4").hover(function(){
+      $(this).css("cursor", "pointer");
+    });
+
+    /* Add ability to "select" (highlight) calendars.
+       If selected, add calendar ID to list to be used by Flask. */
+    $(".col-md-4").click(function(){
+      var divID = $(this).attr("id");
+
+      if($(this).css("background-color") == "rgb(142, 188, 229)") {
+        $(this).css("background-color", "white");
+      }
+      else {
+        $(this).css("background-color", "rgb(142, 188, 229)");
+      }
+
+      $("#find").click(function() {
+        // Declare list of selected calendars to be used.
+        var selectedCals = [];
+        /* Iterate through each instance of a calendar displayed and add
+            its ID to array IF selected
+            Docs: http://api.jquery.com/jquery.each/ */
+        $(".col-md-4").each(function(){
+          if($(this).css("background-color") == "rgb(142, 188, 229)") {
+            selectedCals.push($(this).attr("id"));
+            console.log($(this).attr("id"));
+          }
+        });
+
+        // Pass time and date info for comparison to calendars to Flask
+        // Use response to redirect to show busy times.
+        // Had to join array to pass through JSON without problems
+        $.getJSON("/find_busy_times", {
+          idList: selectedCals.join("+")
+          }, function(){
+            window.location.assign("/index");
+          });
+      });
+    });
+  </script>
+    
+
+  </div>  <!-- container (for bootstrap) -->
+  </body> </html>
