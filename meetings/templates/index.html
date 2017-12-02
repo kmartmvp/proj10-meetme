@@ -24,71 +24,47 @@
      from CDNs instead.
 -->
 
-<script type="text/javascript" src="//cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
-
-<script type="text/javascript" src="//cdn.jsdelivr.net/bootstrap.daterangepicker/2/daterangepicker.js"></script>
-<link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/bootstrap.daterangepicker/2/daterangepicker.css" />
-
-
-</head>
+<!-- Same nav as in create'html -->
+<nav class="navbar navbar-light bg-faded nav-bg" style="background-color: #428bca">
+    <!-- href will redirect to home page -->
+    <a class="navbar-brand" href="#" style="font-weight:bold">MeetMe</a>
+</nav>
 
 <body>
 <div class="container">
-
-<h1>Busy times</h1>
-
 <!--
   -- If there are any warnings or other messages from a prior action,
   -- they appear above the rest of the content, just until the next 
   -- action.
   -->
 
-{% with messages = get_flashed_messages() %}
-  {% if messages %}
-    <ul class=flashes>
-    {% for message in messages %}
-      <li>{{ message }}</li>
-    {% endfor %}
-    </ul>
-  {% endif %}
-{% endwith %}
+<!-- Show meeting range - updated by below get request-->
+<div class="row justify-content-center" style="padding-top: 1em; padding-bottom: 1em">
+  <ul class="row list-group justify-content-center">
+    <li class="list-group-item" id="mrange"></li>
+  </ul>
+</div>
 
-<h2>Date range</h2>
-  <form action="/setrange" method="post">
-  <input type="text" name="daterange" size="40"
-     {% if session.daterange is defined %}
-      value="{{session.daterange}}"
-     {% endif %}
-     class="pull-down"
-     style="background: #fff; cursor: pointer; padding: 5px 10px;
-     border: 1px solid #ccc; width: 12em" >
-  
-  <script type="text/javascript">
-  // Docs on daterangepicker: http://www.daterangepicker.com/#usage
-  $(function() {
-  $('input[name="daterange"]').daterangepicker(
-    {    timePicker: true,
-         ranges: {
-           'Today': [moment(), moment()],
-           'Tomorrow':[moment().add(1, 'days'),
-                       moment().add(1, 'days')], 
-           'This week':[moment(), moment().endOf('week')],
-           'Next week':[moment().add(7, 'days').startOf('week'),
-                        moment().add(7, 'days').endOf('week')],
-           'This month':[moment(), moment().endOf('month')],
-           'Within two weeks':[moment(),moment().add(15, 'days')]
-        },
-        locale: {
-          format: 'M/DD/YYYY hh:mm A'
-        }
-         }
-       );
-    });
-  </script>
-
-<br /><input type="submit" value="Choose" id="chooseBtn" />
-</form>
-
+<!-- Here we handle the busy and available times - they are flashed in to a card containing
+  -- a list group of all busy and available times. Unclickable, in current iteration 
+-->
+<div class="row justify-content-center" style="padding-top: 1em; padding-bottom:1em">
+  <div class="justify-content-center">
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <h3>You're busy and available at:</h3>
+      <ul class="list-group justify-content-center">
+      {% for message in messages %}
+        <li class="list-group-item list-group-item-info justify-content-center">
+          {{ message }}
+        </li>
+      {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+  </div>
+    
+</div>
     <!--
     Show the calendar list (if we have it).  This will need to be turned into
     a form from which calendars can be picked. Up to three entries are
@@ -110,6 +86,13 @@
   </div>
   <!-- Add option to find busy times now that dates are selected -->
   <input type="submit" value="Find Busy Times" id="find" />
+
+  <div class="row justify-content-center">
+    <h4 class="row justify-content-center"> Meeting time so far (Refresh every now and then)</h4>
+      <ul class="list-group" style="padding-top: 2em">
+          <li class="list-group-item justify-content-center" id="final"></li>
+      </ul>
+  </div>
 {% endif %}
 
   <script>
@@ -156,6 +139,19 @@
           });
       });
     });
+
+    // Retrieve date range from database first. "Find" button passes
+    // the busy times to database
+    $.get("/get_range", function(data){
+      $("#mrange").text("Choose calendars for meeting on: ".concat(data.result.rng));
+    });
+
+    $.get("/final", function(data){
+      rslt = data.result.range;
+
+      // Show the final meeting time! Can be updated - keep refreshing until everyone has replied for v1
+      $("#final").text(rslt);
+  });
   </script>
     
 

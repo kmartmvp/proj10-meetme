@@ -1,15 +1,25 @@
-# proj6-Gcal
-Snarf appointment data from a selection of a user's Google calendars 
+# Project 10 - MeetMe
 
-## Inroduction
-Allows users to use their Google calendars to see if they are busy or available over a user-selected date/time. Application uses  the [Google calendar API](https://developers.google.com/google-apps/calendar/) and [daterange selector](http://www.daterangepicker.com/)
+## Description
+No registration web application that allows a user to choose a meeting time and send url to peers to provide their busy and available times from their Google Calendar.
 
-## Run/Install
-Fork and clone repo. Navigate to source directory and run `make run` on the CLI.
+## Notes for Graders
+In this current iteration, the process works in this way:
+(1) Upon running `make run` on CLI, navigate to localhost in browser. The initial route is to create a meeting.
+(2) Upon choosing a meeting, append the given UUID to end of URL, ie `localhost:5000/<UUID>`.
+(3) This is to be sent to peers - navigating here will allow you (and peers) to put in your calendar credentials and load available times to database.
+(4) Currently, the final meeting time shows up on the second page - the one sent to peers. Wait a bit - it seems to run a bit slow when testing. Refresh to see updated if new available times added.
 
-NOTE: Running with bugs currently due to issues I can not figure out with the calendar API, specifically in finding free times. Will be updated for final iteration, but for now the code base for available times is just an attempt.
-## Author Info
-Author: Michael Hagel
+## Detail
+Uses pymongo to store instances of each meeting, and create a URL that can be sent to peers to pull from their Google Calendar to determine busy and available times. Available times are stored in the database and therefore meeting state is preserved - peers can continue to add their available times via the index route.
 
-Email: mhagel@uoregon.edu
+## Running
+Navigate to folder in which this was cloned. Use `make run` to install the requirements and run flask server. Requirements can be "uninstalled" from pyenv with `make veryclean`.
 
+## Author
+Michael Hagel
+
+mhagel@uoregon.edu
+
+## Thank You's
+Starter code provided by: Michal Young

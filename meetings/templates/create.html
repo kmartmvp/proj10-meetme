@@ -1,0 +1,101 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html lang="en">
+    <link rel="stylesheet" type="text/css"
+        href="/static/css/create.css"
+        />
+    <head>
+        <link rel="stylesheet" type="text/css"
+        href="//cdn.jsdelivr.net/bootstrap/latest/css/bootstrap.css"
+        />
+
+        <!-- Include moment.js -->
+        <script type="text/javascript" src="//cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+
+        <script type="text/javascript"
+        src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js">
+        </script>
+
+        <!-- Include Date Range Picker -->
+        <script type="text/javascript" src="//cdn.jsdelivr.net/bootstrap.daterangepicker/2/daterangepicker.js"></script>
+        <link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/bootstrap.daterangepicker/2/daterangepicker.css" />
+    
+    </head>
+    <!-- Reference for navbar: https://v4-alpha.getbootstrap.com/components/navbar/ -->
+    <nav class="navbar navbar-light bg-faded nav-bg" style="background-color: #428bca">
+        <!-- href will redirect to home page -->
+        <a class="navbar-brand" href="#" style="font-weight:bold">MeetMe</a>
+    </nav>
+
+    <body class="bod">
+        <h2 class="row justify-content-center" style="padding-top: 1em">Create a meeting!</h2>
+        <div class="row justify-content-center" style="padding-top: 1em">
+            <div class="col-4 row justify-content-center">
+                <form action="/setrange" method="post">
+                <input type="text" name="daterange" size="40"
+                    {% if session.daterange is defined %}
+                    value="{{session.daterange}}"
+                    {% endif %}
+                    class="pull-down"
+                    style="background: #fff; cursor: pointer; padding: 5px 10px;
+                    border: 1px solid #ccc; width: 12em" >
+                
+                <script type="text/javascript">
+                // Docs on daterangepicker: http://www.daterangepicker.com/#usage
+                $(function() {
+                $('input[name="daterange"]').daterangepicker(
+                    {    timePicker: true,
+                        ranges: {
+                            'Today': [moment(), moment()],
+                            'Tomorrow':[moment().add(1, 'days'),
+                                        moment().add(1, 'days')], 
+                            'This week':[moment(), moment().endOf('week')],
+                            'Next week':[moment().add(7, 'days').startOf('week'),
+                                        moment().add(7, 'days').endOf('week')],
+                            'This month':[moment(), moment().endOf('month')],
+                            'Within two weeks':[moment(),moment().add(15, 'days')]
+                        },
+                        locale: {
+                        format: 'M/DD/YYYY hh:mm A'
+                        }
+                        }
+                        );
+                    });
+                </script>
+                </form>
+            </div>
+            
+        </div>
+        <div class="row justify-content-center">
+        <!-- Submit and create new meeting in DB -->
+            <button type="button" 
+                    class="btn btn-primary" 
+                    id="create">Create
+            </button>
+            
+        </div>
+
+        <div class="card row justify-content-center" id="card" style="visibility: hidden">
+            <div class="card row justify-content-center">
+                <!-- Docs on visibility: https://www.w3schools.com/cssref/pr_class_visibility.asp -->
+                <div class="card-block">
+                    <h4 class="card-title"> URL for Peers</h4>
+                    <p class="card-text justify-content-center"></p>
+                </div>
+            </div>
+        </div>
+    </body>
+
+    <script>
+        $("#create").on("click", function(){
+            // Route to /create to send to DB. Log to console if success
+            $.getJSON("/create_meeting", {}, function(data){
+                console.log(data.result.name);
+                // Set card p-tag text to the correct URL extension
+                $(".card-text").text(data.result.name);
+                $("#card").attr("style", "visibility: visible; margin-top: 1em; margin-left: 4em; margin-right: 4em");
+            });
+        });
+    </script>
+    
+
+</html>

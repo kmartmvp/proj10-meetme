@@ -4,8 +4,6 @@ from flask import request
 from flask import url_for
 import uuid
 
-import avail_times
-
 import json
 import logging
 
@@ -21,6 +19,16 @@ import httplib2   # used in oauth2 flow
 
 # Google API for services 
 from apiclient import discovery
+
+# For use to calculate free times
+from free_times import free
+
+# Calculate final meeting range
+from calc_avail import final_time
+
+# Database essentials
+from pymongo import MongoClient
+import db
 
 ###
 # Globals
@@ -46,13 +54,12 @@ APPLICATION_NAME = 'MeetMe class project'
 #
 #############################
 
-@app.route("/")
-@app.route("/index")
-def index():
-  app.logger.debug("Entering index")
-  if 'begin_date' not in flask.session:
-    init_session_values()
-  return render_template('index.html')
+# @app.route("/index")
+# def index():
+#   app.logger.debug("Entering index")
+#   if 'begin_date' not in flask.session:
+#     init_session_values()
+#   return render_template('index.html')
 
 @app.route("/choose")
 def choose():
@@ -110,32 +117,219 @@ def find_busy_times():
                 timeMin = start_format,
                 timeMax = end_format,
                 pageToken = page_token,
-                singleEvents = False).execute()
+                singleEvents = True).execute()
             
-            # Update "Busy Times" div
-            busy_set = set()
+            free_times = []
             for event in events['items']:
-                # Ensure the set has the busy times in hours for each event
-                for h in arrow.Arrow.range("hour", start_format, end_format):
-                    busy_set.add(h)
+                try:
+                    ev_start = event["start"]["dateTime"]
+                    ev_end = event["end"]["dateTime"]
 
-                flask.flash(event["summary"])
-                print(event["summary"])
+                    start_time = arrow.get(ev_start, "YYYY-MM-DDTHH:mm:ssZZ")
+                    start_time_format = start_time.format("MM/DD/YYYY hh:mm A")
 
-                # Flash available times
-                avail = avail_times.avail_times(busy_set, start_format, end_format)
+                    end_time = arrow.get(ev_end, "YYYY-MM-DDTHH:mm:ssZZ")
+                    end_time_format = end_time.format("MM/DD/YYYY hh:mm A")
 
-            # Possibly call avail_times here? Save all busy times in an array,
-            # avail_times will compre busy times to the entire range between start
-            # and end
-            
+                    summary = event["summary"]
+
+                    # Send busy times to free_times module to calculate free times for DB
+                    free_times = free(
+                        free_times, start_arrow, end_arrow, start_time_format, end_time_format)
+
+                    # Flash busy times for user to see if NOT all-day event (ie dateTime key is accessible)
+                    flask.flash("Busy on {} - {}: {}".format(
+                        start_time_format, end_time_format, summary))
+                except:
+                    ev_start = event["start"]["date"]
+                    ev_end = event["end"]["date"]
+
+                    start_time = arrow.get(ev_start, "YYYY-MM-DD")
+                    start_time_format = start_time.format("MM/DD/YYYY hh:mm A")
+
+                    end_time = arrow.get(ev_end, "YYYY-MM-DD")
+                    end_time_format = end_time.format("MM/DD/YYYY hh:mm A")
+
+                    summary = event["summary"]
+
+                    # Flash busy times for user to see if IS all-day event (ie dateTime key is NOT accessible)
+                    flask.flash("Busy on {} - {}: {}".format(
+                        start_time_format, end_time_format, summary))
+                    
+                    app.logger.info("%s is all-day event - no dateTime.", summary)
+                
+            # Create list of ranges to be passed to DB
+                avail_times = []
+                last = None
+                time1 = None
+                time2 = None
+                # Find free times according to ranges
+                # None indicates the end of a range - create ranges according to a beginning up to a Nonetype
+                for i in range(len(free_times)):
+                    nxt = None
+                    if i != len(free_times) - 1:
+                        nxt = free_times[i+1]
+
+                    if free_times[i] == None:
+                        last = None
+                    elif last == None:
+                        time1 = free_times[i]
+                        last = free_times[i]
+                    elif nxt == None:
+                        time2 = free_times[i]
+                        avail_times.append([time1, time2])
+                
+                for r in avail_times:
+                    # Flash busy times for user to see if NOT all-day event (ie dateTime key is accessible)
+                    flask.flash("Available on {} - {}".format(
+                        r[0], r[1]))
+                    
+                    # Create new object in database
+                    collection = db.dbase.get_collection(flask.session["db_name"])
+                    collection.insert_one({
+                        "type": "availability",
+                        "start": str(r[0]),
+                        "end": str(r[1])
+                    })
+
             page_token = events.get("nextPageToken")
 
             if not page_token:
                 break
 
-        # Empty response, but JQuery uses response to indicate redirect
-        return flask.jsonify({})
+    # Empty response, but JQuery uses response to indicate redirect
+    return flask.jsonify({})
+
+
+@app.route("/")
+@app.route("/entry")
+def entry():
+    # Entry point - it is automatically the "create meeting" page
+    return render_template("create.html")
+
+
+@app.route("/create_meeting")
+def create_meeting():
+    """Routes application to create page. Is default page.
+    
+    [description]
+    
+    Decorators:
+        app
+    
+    Returns:
+        [type] -- [description]
+    """
+    # Maybe initialize session vairables here and combine index with this? I think yes.
+    # Will need to edit intialize session and set range for dateTime ranges
+    # See how datetimepicker is used. This format will be sent to new user page.
+    #   SO, setrange is used for create page now and not user page (old index and busy times)
+
+    # Retrieve selected datetime from session and split into start and end
+    date_time_split = flask.session["daterange"].split(" - ")
+    date_time_start = date_time_split[0]
+    date_time_end = date_time_split[1]
+
+    # Generate ID for both URL and name of collection in DB that represents the meeting
+    name = str(uuid.uuid4())
+    flask.session["db_name"] = name
+
+    # Find collection with respective name defined in parameters
+    collection = db.dbase.get_collection(flask.session["db_name"])
+
+    # Create new collection (a new meeting)
+    db.new_meeting(flask.session["db_name"])
+
+    # Add date range to collection
+    collection.insert_one({
+        "type": "meetingRange",
+        "start": date_time_start,
+        "end": date_time_end
+    })
+
+    # Flash url to bootstrap in create.html
+    # flask.flash("Append to back of URL: " + name)
+
+    msg = {"name": name}
+
+    return flask.jsonify(result=msg)
+
+
+@app.route("/<meeting>")
+def user_page(meeting):
+    # Reference on routing to variable URL:
+    # http://exploreflask.com/en/latest/views.html
+
+    # Will need to give "choose" render_template parameters
+
+    # Similar to entry point at index, this is the entry point for someone
+    # receiving an invitation to the meeting. If so, we must initialize session
+    # values.
+    if 'begin_date' not in flask.session:
+        app.logger.debug("User entering upon invitation")
+        init_session_values()
+
+    # Update with user provided URL (meeting) so that we reference the correct collection
+    # in route choose
+    flask.session["db_name"] = meeting
+
+    ## STARTER CODE - originally from original index route
+    ## We'll need authorization to list calendars 
+    ## I wanted to put what follows into a function, but had
+    ## to pull it back here because the redirect has to be a
+    ## 'return' 
+    app.logger.debug("Checking credentials for Google calendar access")
+    credentials = valid_credentials()
+    if not credentials:
+      app.logger.debug("Redirecting to authorization")
+      return flask.redirect(flask.url_for('oauth2callback'))
+
+    gcal_service = get_gcal_service(credentials)
+    app.logger.debug("Returned from get_gcal_service")
+    flask.g.calendars = list_calendars(gcal_service)
+
+    return render_template("index.html")
+
+
+@app.route("/get_range", methods=["GET"])
+def get_range():
+    # Retrieves date range from meeting
+    # Meeting is already saved in session variable "db_name"
+
+    collection = db.dbase.get_collection(str(flask.session["db_name"]))
+    
+    print(collection)
+    # Returns cursor object for iterating over item in collection
+    item = collection.find_one({"type": "meetingRange"})
+    print(item)
+    
+    # Correct start and end based on indices for meetingRange type
+    #   [0] - oID
+    #   [1] - type ("meetingRange")
+    #   [2] - start
+    #   [3] - end
+    start = item["start"]
+    end = item["end"]
+    print("\n" + start)
+    print("\n" + end)
+
+    rng = "{} - {}".format(start, end)
+    app.logger.debug("METHOD: get_range -- Can't connect to collection.")
+
+
+    rslt = {"rng": rng}
+    return flask.jsonify(result=rslt)
+
+@app.route("/final", methods=["GET"])
+def final():
+    # Calculate the final meeting time for creator
+    
+    # Get the final calculation on aggregated free times via calc_avail
+    fr = final_time(flask.session["db_name"])
+
+    rslt = {"range": fr}
+    
+    return flask.jsonify(result=rslt)
 
 
 ####
@@ -297,6 +491,9 @@ def init_session_values():
     # Default time span each day, 8 to 5
     flask.session["begintime"] = interpret_time("9am")
     flask.session["endtime"] = interpret_time("5pm")
+
+    # Initialize database session info
+    flask.session["db_name"] = "No collections defined"
 
 def interpret_time( text ):
     """
