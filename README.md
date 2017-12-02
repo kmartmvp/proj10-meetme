@@ -16,6 +16,24 @@ Uses pymongo to store instances of each meeting, and create a URL that can be se
 ## Running
 Navigate to folder in which this was cloned. Use `make run` to install the requirements and run flask server. Requirements can be "uninstalled" from pyenv with `make veryclean`.
 
+## Credentials
+For creating your own credentials file, you will need the following:
+```ini
+[DEFAULT]
+name = 
+repo = 
+GOOGLE_KEY_FILE = 
+SECRET_KEY = 
+DB_USER = 
+DB_USER_PW = 
+DB_HOST = 
+DB_PORT = 
+DB = 
+PORT = 
+
+```
+Insert under the "meetings" folder.
+
 ## Author
 Michael Hagel
 
